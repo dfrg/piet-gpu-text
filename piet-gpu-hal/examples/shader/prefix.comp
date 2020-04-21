@@ -3,7 +3,7 @@
 #version 450
 #extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
-#extension GL_KHR_memory_scope_semantics : enable
+//#extension GL_KHR_memory_scope_semantics : enable
 
 layout(local_size_x = 1024) in;
 
@@ -57,24 +57,26 @@ void main() {
         uint total_aggregate = subgroupAdd(their_aggregate);
         prefixes[gl_SubgroupInvocationID] = subgroupExclusiveAdd(their_aggregate);
         if (gl_SubgroupInvocationID == 0) {
-            atomicStore(work_buf[my_tile * 4 + 2], total_aggregate, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+            work_buf[my_tile * 4 + 2] = total_aggregate;
             uint flag = FLAG_AGGREGATE_READY;
             if (my_tile == 0) {
-                atomicStore(work_buf[my_tile * 4 + 3], total_aggregate, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+                work_buf[my_tile * 4 + 3] = total_aggregate;
                 flag = FLAG_PREFIX_READY;
             }
-            atomicStore(work_buf[my_tile * 4 + 1], flag, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsRelease);
+            memoryBarrierBuffer();
+            work_buf[my_tile * 4 + 1] = flag;
             if (my_tile != 0) {
                 // step 4: decoupled lookback
                 uint look_back_ix = my_tile - 1;
                 while (true) {
-                    flag = atomicLoad(work_buf[look_back_ix * 4 + 1], gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsAcquire);
+                    flag = work_buf[look_back_ix * 4 + 1];
+                    memoryBarrierBuffer();
                     if (flag == FLAG_PREFIX_READY) {
-                        uint their_prefix = atomicLoad(work_buf[look_back_ix * 4 + 3], gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+                        uint their_prefix = work_buf[look_back_ix * 4 + 3];
                         exclusive_prefix = their_prefix + exclusive_prefix;
                         break;
                     } else if (flag == FLAG_AGGREGATE_READY) {
-                        uint their_agg = atomicLoad(work_buf[look_back_ix * 4 + 2], gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+                        uint their_agg = work_buf[look_back_ix * 4 + 2];
                         exclusive_prefix = their_agg + exclusive_prefix;
                         look_back_ix--;
                     }
@@ -84,9 +86,10 @@ void main() {
                 // step 5: compute inclusive prefix
                 shared_prefix = exclusive_prefix;
                 uint inclusive_prefix = exclusive_prefix + total_aggregate;
-                atomicStore(work_buf[my_tile * 4 + 3], inclusive_prefix, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+                work_buf[my_tile * 4 + 3] = inclusive_prefix;
+                memoryBarrierBuffer();
                 flag = FLAG_PREFIX_READY;
-                atomicStore(work_buf[my_tile * 4 + 1], flag, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsRelease);
+                work_buf[my_tile * 4 + 1] = flag;
             }
         }
     }

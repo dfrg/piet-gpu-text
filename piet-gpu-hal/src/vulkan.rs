@@ -350,7 +350,7 @@ impl crate::Device for VkDevice {
                 .build()],
             fence,
         )?;
-        device.wait_for_fences(&[fence], true, 100_000_000)?;
+        device.wait_for_fences(&[fence], true, 1_000_000_000)?;
         // TODO: handle errors better (currently leaks fence and can lead to other problems)
         Ok(())
     }

@@ -4,7 +4,7 @@ use piet_gpu_hal::{CmdBuf, Device, MemFlags};
 const BLOCKSIZE: usize = 1024;
 
 fn main() {
-    let n = 64 * 1024 * 1024;
+    let n = 16 * 1024;
     let n_tiles = n / BLOCKSIZE;
     let instance = VkInstance::new().unwrap();
     unsafe {
