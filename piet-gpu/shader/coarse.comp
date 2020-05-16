@@ -276,8 +276,6 @@ void main() {
         barrier();
 
         rd_ix += N_TILE;
-        // The second disjunct is there as a strange workaround on Nvidia. If it is
-        // removed, then the kernel fails with ERROR_DEVICE_LOST.
-        if (rd_ix >= wr_ix || bin_ix == ~0) break;
+        if (rd_ix >= wr_ix) break;
     }
 }
