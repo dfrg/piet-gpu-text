@@ -75,6 +75,56 @@ fn trace_merge(buf: &[u32]) {
     }
 }
 
+fn analyze_anno(buf: &[u32]) {
+    let mut count = 0;
+    let mut runs = 0;
+    let mut ntiles = 0.0;
+    let tile_size = 16.0;
+    for i in (0..13239*11).step_by(11) {
+        println!("{}: {}", i, buf[i]);
+        let mut last_bbox = (0., 0., 0., 0.);
+        let mut bbox = (0., 0., 0., 0.);
+        match buf[i] {
+            1 => {
+                let floats = (1..7).map(|j| f32::from_bits(buf[i + j])).collect::<Vec<_>>();
+                let x0 = floats[0];
+                let y0 = floats[1];
+                let x1 = floats[2];
+                let y1 = floats[3];
+                let (x0, x1) = (x0.min(x1), x0.max(x1));
+                let (y0, y1) = (y0.min(y1), y0.max(y1));
+                let (x0, y0) = (x0 - floats[4], y0 - floats[5]);
+                let (x1, y1) = (x1 + floats[4], y1 + floats[5]);
+                println!("floats: {:?}; {} {} {} {}", floats, x0, y0, x1, y1);
+                bbox = ((x0 / tile_size).floor(), (y0 / tile_size).floor(), (x1 / tile_size).ceil(), (y1 / tile_size).ceil());
+            }
+            4 => {
+                let floats = (2..7).map(|j| f32::from_bits(buf[i + j])).collect::<Vec<_>>();
+                let x0 = floats[0];
+                let y0 = floats[1];
+                let x1 = floats[2];
+                let y1 = floats[3];
+                let (x0, x1) = (x0.min(x1), x0.max(x1));
+                let (y0, y1) = (y0.min(y1), y0.max(y1));
+                println!("floats: {:?}; {} {} {} {}", floats, x0, y0, x1, y1);
+                bbox = ((x0 / tile_size).floor(), (y0 / tile_size).floor(), (x1 / tile_size).ceil(), (y1 / tile_size).ceil());
+            }
+            _ => (),
+        }
+        let area = (bbox.2 - bbox.0) * (bbox.3 - bbox.1);
+        println!("{:?}: {}", bbox, area);
+        count += 1;
+        if last_bbox != bbox {
+            last_bbox = bbox;
+            runs += 1;
+        }
+        ntiles += area;
+
+    }
+    println!("{} runs out of {}", runs, count);
+    println!("total number of tiles: {}", ntiles);
+}
+
 fn main() -> Result<(), Error> {
     let (instance, _) = VkInstance::new(None)?;
     unsafe {
@@ -105,12 +155,11 @@ fn main() -> Result<(), Error> {
         println!("Coarse kernel time: {:.3}ms", (ts[2] - ts[1]) * 1e3);
         println!("Render kernel time: {:.3}ms", (ts[3] - ts[2]) * 1e3);
 
-        /*
         let mut data: Vec<u32> = Default::default();
-        device.read_buffer(&renderer.bin_buf, &mut data).unwrap();
-        //piet_gpu::dump_k1_data(&data);
+        device.read_buffer(&renderer.anno_buf, &mut data).unwrap();
+        piet_gpu::dump_k1_data(&data);
+        analyze_anno(&data);
         //trace_merge(&data);
-        */
 
         let mut img_data: Vec<u8> = Default::default();
         // Note: because png can use a `&[u8]` slice, we could avoid an extra copy

@@ -159,7 +159,7 @@ impl<D: Device> Renderer<D> {
         device.write_buffer(&scene_buf, &scene)?;
 
         let state_buf = device.create_buffer(1 * 1024 * 1024, dev)?;
-        let anno_buf = device.create_buffer(64 * 1024 * 1024, dev)?;
+        let anno_buf = device.create_buffer(64 * 1024 * 1024, host)?;
         let bin_buf = device.create_buffer(64 * 1024 * 1024, dev)?;
         let ptcl_buf = device.create_buffer(48 * 1024 * 1024, dev)?;
         let image_dev = device.create_image2d(WIDTH as u32, HEIGHT as u32, dev)?;
