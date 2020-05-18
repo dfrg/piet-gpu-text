@@ -75,6 +75,27 @@ fn trace_merge(buf: &[u32]) {
     }
 }
 
+fn analyze_log(buf: &[u32]) {
+    const PER_THREAD_LOG: usize = 0x4000;
+    for thread in 0..256 {
+        for i in 0..PER_THREAD_LOG/2 {
+            let tag = buf[thread * PER_THREAD_LOG + i * 2];
+            let string = match tag {
+                1 => "start thread",
+                2 => "shared minimum element",
+                3 => "minimum element of this thread",
+                4 => "thread won",
+                5 => "chosen chunk_n",
+                6 => "rd_ix",
+                7 => "wr_ix",
+                _ => break,
+            };
+            println!("{}: {:x}", string, buf[thread * PER_THREAD_LOG + i * 2 + 1]);
+        }
+        println!("");
+    }
+}
+
 fn analyze_anno(buf: &[u32]) {
     let mut count = 0;
     let mut runs = 0;
@@ -156,10 +177,14 @@ fn main() -> Result<(), Error> {
         println!("Render kernel time: {:.3}ms", (ts[3] - ts[2]) * 1e3);
 
         let mut data: Vec<u32> = Default::default();
-        device.read_buffer(&renderer.anno_buf, &mut data).unwrap();
-        piet_gpu::dump_k1_data(&data);
-        analyze_anno(&data);
+        device.read_buffer(&renderer.bin_buf, &mut data).unwrap();
+        //piet_gpu::dump_k1_data(&data);
+        //analyze_anno(&data);
         //trace_merge(&data);
+
+        let mut data: Vec<u32> = Default::default();
+        device.read_buffer(&renderer.ptcl_buf, &mut data).unwrap();
+        analyze_log(&data);
 
         let mut img_data: Vec<u8> = Default::default();
         // Note: because png can use a `&[u8]` slice, we could avoid an extra copy

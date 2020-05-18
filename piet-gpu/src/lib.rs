@@ -160,8 +160,8 @@ impl<D: Device> Renderer<D> {
 
         let state_buf = device.create_buffer(1 * 1024 * 1024, dev)?;
         let anno_buf = device.create_buffer(64 * 1024 * 1024, host)?;
-        let bin_buf = device.create_buffer(64 * 1024 * 1024, dev)?;
-        let ptcl_buf = device.create_buffer(48 * 1024 * 1024, dev)?;
+        let bin_buf = device.create_buffer(64 * 1024 * 1024, host)?;
+        let ptcl_buf = device.create_buffer(48 * 1024 * 1024, host)?;
         let image_dev = device.create_image2d(WIDTH as u32, HEIGHT as u32, dev)?;
 
         let el_code = include_bytes!("../shader/elements.spv");
@@ -275,11 +275,13 @@ impl<D: Device> Renderer<D> {
         );
         cmd_buf.write_timestamp(&query_pool, 3);
         cmd_buf.memory_barrier();
+        /*
         cmd_buf.dispatch(
             &self.k4_pipeline,
             &self.k4_ds,
             ((WIDTH / TILE_W) as u32, (HEIGHT / TILE_H) as u32, 1),
         );
+        */
         cmd_buf.write_timestamp(&query_pool, 4);
         cmd_buf.memory_barrier();
         cmd_buf.image_barrier(&self.image_dev, ImageLayout::General, ImageLayout::BlitSrc);
