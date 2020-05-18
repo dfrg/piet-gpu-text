@@ -75,8 +75,14 @@ fn trace_merge(buf: &[u32]) {
     }
 }
 
+const PER_THREAD_LOG: usize = 0x4000;
+
+fn is_log_buggy(buf: &[u32]) -> bool {
+    let thread_0_shared_min = buf[3];
+    (0..256).any(|thread| buf[thread * PER_THREAD_LOG + 3] != thread_0_shared_min)
+}
+
 fn analyze_log(buf: &[u32]) {
-    const PER_THREAD_LOG: usize = 0x4000;
     for thread in 0..256 {
         for i in 0..PER_THREAD_LOG/2 {
             let tag = buf[thread * PER_THREAD_LOG + i * 2];
@@ -164,44 +170,35 @@ fn main() -> Result<(), Error> {
         let image_buf =
             device.create_buffer((WIDTH * HEIGHT * 4) as u64, MemFlags::host_coherent())?;
 
-        cmd_buf.begin();
-        renderer.record(&mut cmd_buf, &query_pool);
-        cmd_buf.copy_image_to_buffer(&renderer.image_dev, &image_buf);
-        cmd_buf.finish();
-        device.run_cmd_buf(&cmd_buf, &[], &[], Some(&fence))?;
-        device.wait_and_reset(&[fence])?;
-        let ts = device.reap_query_pool(&query_pool).unwrap();
-        println!("Element kernel time: {:.3}ms", ts[0] * 1e3);
-        println!("Binning kernel time: {:.3}ms", (ts[1] - ts[0]) * 1e3);
-        println!("Coarse kernel time: {:.3}ms", (ts[2] - ts[1]) * 1e3);
-        println!("Render kernel time: {:.3}ms", (ts[3] - ts[2]) * 1e3);
+        for _ in 0..1_000_000 {
+            cmd_buf.begin();
+            renderer.record(&mut cmd_buf, &query_pool);
+            cmd_buf.copy_image_to_buffer(&renderer.image_dev, &image_buf);
+            cmd_buf.finish();
+            device.run_cmd_buf(&cmd_buf, &[], &[], Some(&fence))?;
+            device.wait_and_reset(&[fence])?;
+            let ts = device.reap_query_pool(&query_pool).unwrap();
+            /*
+            println!("Element kernel time: {:.3}ms", ts[0] * 1e3);
+            println!("Binning kernel time: {:.3}ms", (ts[1] - ts[0]) * 1e3);
+            println!("Coarse kernel time: {:.3}ms", (ts[2] - ts[1]) * 1e3);
+            println!("Render kernel time: {:.3}ms", (ts[3] - ts[2]) * 1e3);
+            */
 
-        let mut data: Vec<u32> = Default::default();
-        device.read_buffer(&renderer.bin_buf, &mut data).unwrap();
-        //piet_gpu::dump_k1_data(&data);
-        //analyze_anno(&data);
-        //trace_merge(&data);
+            let mut data: Vec<u32> = Default::default();
+            device.read_buffer(&renderer.bin_buf, &mut data).unwrap();
+            //piet_gpu::dump_k1_data(&data);
+            //analyze_anno(&data);
+            //trace_merge(&data);
 
-        let mut data: Vec<u32> = Default::default();
-        device.read_buffer(&renderer.ptcl_buf, &mut data).unwrap();
-        analyze_log(&data);
+            let mut data: Vec<u32> = Default::default();
+            device.read_buffer(&renderer.ptcl_buf, &mut data).unwrap();
+            if is_log_buggy(&data) {
+                analyze_log(&data);
+                break;
+            }
+        }
 
-        let mut img_data: Vec<u8> = Default::default();
-        // Note: because png can use a `&[u8]` slice, we could avoid an extra copy
-        // (probably passing a slice into a closure). But for now: keep it simple.
-        device.read_buffer(&image_buf, &mut img_data).unwrap();
-
-        // Write image as PNG file.
-        let path = Path::new("image.png");
-        let file = File::create(path).unwrap();
-        let ref mut w = BufWriter::new(file);
-
-        let mut encoder = png::Encoder::new(w, WIDTH as u32, HEIGHT as u32);
-        encoder.set_color(png::ColorType::RGBA);
-        encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header().unwrap();
-
-        writer.write_image_data(&img_data).unwrap();
     }
 
     Ok(())
