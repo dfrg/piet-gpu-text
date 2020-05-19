@@ -176,6 +176,7 @@ void main() {
             }
             barrier();
             uint chunk_n = sh_selected_n;
+            barrier();
             log_value(TAG_CHUNK_N, chunk_n);
             if (chunk_n == 0) {
                 // All chunks consumed

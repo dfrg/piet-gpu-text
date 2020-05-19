@@ -170,7 +170,7 @@ fn main() -> Result<(), Error> {
         let image_buf =
             device.create_buffer((WIDTH * HEIGHT * 4) as u64, MemFlags::host_coherent())?;
 
-        for _ in 0..1_000_000 {
+        for i in 0..1_000_000 {
             cmd_buf.begin();
             renderer.record(&mut cmd_buf, &query_pool);
             cmd_buf.copy_image_to_buffer(&renderer.image_dev, &image_buf);
@@ -178,22 +178,25 @@ fn main() -> Result<(), Error> {
             device.run_cmd_buf(&cmd_buf, &[], &[], Some(&fence))?;
             device.wait_and_reset(&[fence])?;
             let ts = device.reap_query_pool(&query_pool).unwrap();
-            /*
-            println!("Element kernel time: {:.3}ms", ts[0] * 1e3);
-            println!("Binning kernel time: {:.3}ms", (ts[1] - ts[0]) * 1e3);
-            println!("Coarse kernel time: {:.3}ms", (ts[2] - ts[1]) * 1e3);
-            println!("Render kernel time: {:.3}ms", (ts[3] - ts[2]) * 1e3);
-            */
+            if i == 0 {
+                println!("Element kernel time: {:.3}ms", ts[0] * 1e3);
+                println!("Binning kernel time: {:.3}ms", (ts[1] - ts[0]) * 1e3);
+                println!("Coarse kernel time: {:.3}ms", (ts[2] - ts[1]) * 1e3);
+                println!("Render kernel time: {:.3}ms", (ts[3] - ts[2]) * 1e3);
+            }
 
             let mut data: Vec<u32> = Default::default();
             device.read_buffer(&renderer.bin_buf, &mut data).unwrap();
-            //piet_gpu::dump_k1_data(&data);
+            if i == 0 {
+                piet_gpu::dump_k1_data(&data);
+            }
             //analyze_anno(&data);
             //trace_merge(&data);
 
             let mut data: Vec<u32> = Default::default();
             device.read_buffer(&renderer.ptcl_buf, &mut data).unwrap();
             if is_log_buggy(&data) {
+                println!("failure on iteration {}", i);
                 analyze_log(&data);
                 break;
             }

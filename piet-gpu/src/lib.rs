@@ -60,7 +60,7 @@ pub fn render_scene(rc: &mut impl RenderContext) {
         5.0,
     );
     //render_cardioid(rc);
-    render_tiger(rc);
+    //render_tiger(rc);
 }
 
 #[allow(unused)]
@@ -245,7 +245,7 @@ impl<D: Device> Renderer<D> {
         cmd_buf.copy_buffer(&self.scene_buf, &self.scene_dev);
         cmd_buf.copy_buffer(&self.bin_alloc_buf_host, &self.bin_alloc_buf_dev);
         cmd_buf.copy_buffer(&self.coarse_alloc_buf_host, &self.coarse_alloc_buf_dev);
-        cmd_buf.clear_buffer(&self.state_buf);
+        //cmd_buf.clear_buffer(&self.state_buf);
         cmd_buf.memory_barrier();
         cmd_buf.image_barrier(
             &self.image_dev,
