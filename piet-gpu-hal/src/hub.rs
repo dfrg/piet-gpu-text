@@ -148,8 +148,10 @@ impl Session {
         let (cmd_buf, fence) = if let Some(cf) = self.0.cmd_buf_pool.lock().unwrap().pop() {
             cf
         } else {
+            println!("allocating cmd buf..");
             let cmd_buf = self.0.device.create_cmd_buf()?;
             let fence = unsafe { self.0.device.create_fence(false)? };
+            println!("done");
             (cmd_buf, fence)
         };
         Ok(CmdBuf {
@@ -173,7 +175,7 @@ impl Session {
                     // Reuse of command buffers works on Vulkan, but not at all on
                     // Metal and is problematic on DX12 (the allocator is returned)
                     // to the pool. Punt for now.
-
+                    
                     let mut pool = self.0.cmd_buf_pool.lock().unwrap();
                     pool.push((item.cmd_buf, item.fence));
                     std::mem::drop(item.resources);
@@ -181,6 +183,7 @@ impl Session {
                         pool.push((staging_cmd_buf.cmd_buf, staging_cmd_buf.fence));
                         std::mem::drop(staging_cmd_buf.resources);
                     }
+                    
                 } else {
                     i += 1;
                 }
