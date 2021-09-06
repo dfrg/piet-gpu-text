@@ -2,19 +2,12 @@
 
 use rand::{Rng, RngCore};
 
-<<<<<<< HEAD
 use piet::kurbo::{BezPath, Circle, Line, Point, Rect, Shape};
 use piet::{
     Color, FixedGradient, FixedLinearGradient, GradientStop, Text, TextAttribute, TextLayoutBuilder,
 };
 
 use crate::{PicoSvg, RenderContext, Vec2};
-=======
-use piet::{Color, FixedGradient, FixedLinearGradient, GradientStop, Text, TextAttribute, TextLayoutBuilder};
-use piet::kurbo::{BezPath, Circle, Line, Point, Rect, Shape};
-
-use crate::{RenderContext, PicoSvg, Vec2};
->>>>>>> Animating scene
 
 const N_CIRCLES: usize = 0;
 
@@ -199,14 +192,10 @@ fn render_tiger(rc: &mut impl RenderContext) {
 }
 
 pub fn render_anim_frame(rc: &mut impl RenderContext, i: usize) {
-<<<<<<< HEAD
     rc.fill(
         Rect::new(0.0, 0.0, 1000.0, 1000.0),
         &Color::rgb8(128, 128, 128),
     );
-=======
-    rc.fill(Rect::new(0.0, 0.0, 1000.0, 1000.0), &Color::rgb8(128, 128, 128));
->>>>>>> Animating scene
     let text_size = 60.0 + 40.0 * (0.01 * i as f64).sin();
     rc.save().unwrap();
     //rc.transform(Affine::new([0.2, 0.0, 0.0, -0.2, 200.0, 800.0]));
@@ -224,8 +213,4 @@ pub fn render_anim_frame(rc: &mut impl RenderContext, i: usize) {
     let p1 = center + 400.0 * Vec2::from_angle(th);
     let line = Line::new(center, p1);
     rc.stroke(line, &Color::rgb8(128, 0, 0), 5.0);
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> Animating scene
