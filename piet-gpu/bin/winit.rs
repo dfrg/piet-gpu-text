@@ -1,4 +1,5 @@
-use piet::RenderContext;
+use piet::{RenderContext, Text, TextAttribute, TextLayoutBuilder};
+use piet::kurbo::Point;
 use piet_gpu_hal::{Error, ImageLayout, Instance, Session, SubmittedCmdBuf};
 
 use piet_gpu::{test_scenes, PietGpuRenderContext, Renderer};
@@ -38,6 +39,7 @@ fn main() -> Result<(), Error> {
         .build(&event_loop)?;
 
     let (instance, surface) = Instance::new(Some(&window))?;
+    let mut info_string = "info".to_string();
     unsafe {
         let device = instance.device(surface.as_ref())?;
         let mut swapchain =
@@ -101,13 +103,14 @@ fn main() -> Result<(), Error> {
                         if matches.value_of("INPUT").is_none() {
                             let mut ctx = PietGpuRenderContext::new();
                             test_scenes::render_anim_frame(&mut ctx, current_frame);
+                            render_info_string(&mut ctx, &info_string);
                             if let Err(e) = renderer.upload_render_ctx(&mut ctx) {
                                 println!("error in uploading: {}", e);
                             }
                         }
 
                         let ts = session.fetch_query_pool(&query_pools[last_frame_idx]).unwrap();
-                        window.set_title(&format!(
+                        info_string = format!(
                             "{:.3}ms :: e:{:.3}ms|alloc:{:.3}ms|cp:{:.3}ms|bd:{:.3}ms|bin:{:.3}ms|cr:{:.3}ms|r:{:.3}ms",
                             ts[6] * 1e3,
                             ts[0] * 1e3,
@@ -117,7 +120,8 @@ fn main() -> Result<(), Error> {
                             (ts[4] - ts[3]) * 1e3,
                             (ts[5] - ts[4]) * 1e3,
                             (ts[6] - ts[5]) * 1e3,
-                        ));
+                        );
+                        window.set_title(&info_string);
                     }
 
                     let (image_idx, acquisition_semaphore) = swapchain.next().unwrap();
@@ -156,4 +160,14 @@ fn main() -> Result<(), Error> {
             }
         })
     }
+}
+
+fn render_info_string(rc: &mut impl RenderContext, info: &str) {
+    let layout = rc
+        .text()
+        .new_text_layout(info.to_string())
+        .default_attribute(TextAttribute::FontSize(40.0))
+        .build()
+        .unwrap();
+    rc.draw_text(&layout, Point::new(110.0, 50.0));
 }
