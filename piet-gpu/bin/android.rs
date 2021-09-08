@@ -16,6 +16,9 @@ use piet_gpu_hal::{
     Swapchain,
 };
 
+use piet::{RenderContext, Text, TextAttribute, TextLayoutBuilder};
+use piet::kurbo::Point;
+
 use piet_gpu::{test_scenes, PietGpuRenderContext, Renderer};
 
 #[cfg_attr(target_os = "android", ndk_glue::main(backtrace = "on"))]
@@ -138,8 +141,16 @@ impl GfxState {
             if let Some(submitted) = self.submitted.take() {
                 submitted.wait().unwrap();
 
+                let ts = self
+                    .session
+                    .fetch_query_pool(&self.query_pools[self.last_frame_idx])
+                    .unwrap();
+                println!("render time: {:?}", ts);
+
                 let mut ctx = PietGpuRenderContext::new();
-                test_scenes::render_anim_frame(&mut ctx, self.current_frame);
+                //test_scenes::render_anim_frame(&mut ctx, self.current_frame);
+                test_scenes::render_tiger(&mut ctx);
+                render_info_string(&mut ctx, &format!("{:.1}ms", ts.last().unwrap() * 1e3));
                 if let Err(e) = self.renderer.upload_render_ctx(&mut ctx) {
                     println!("error in uploading: {}", e);
                 }
@@ -182,4 +193,14 @@ impl GfxState {
             self.current_frame += 1;
         }
     }
+}
+
+fn render_info_string(rc: &mut impl RenderContext, info: &str) {
+    let layout = rc
+        .text()
+        .new_text_layout(info.to_string())
+        .default_attribute(TextAttribute::FontSize(60.0))
+        .build()
+        .unwrap();
+    rc.draw_text(&layout, Point::new(110.0, 150.0));
 }

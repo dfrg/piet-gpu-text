@@ -180,7 +180,7 @@ fn render_text_test(rc: &mut impl RenderContext) {
 }
 
 #[allow(unused)]
-fn render_tiger(rc: &mut impl RenderContext) {
+pub fn render_tiger(rc: &mut impl RenderContext) {
     let xml_str = std::str::from_utf8(include_bytes!("../Ghostscript_Tiger.svg")).unwrap();
     let start = std::time::Instant::now();
     let svg = PicoSvg::load(xml_str, 8.0).unwrap();
@@ -201,12 +201,13 @@ pub fn render_anim_frame(rc: &mut impl RenderContext, i: usize) {
     //rc.transform(Affine::new([0.2, 0.0, 0.0, -0.2, 200.0, 800.0]));
     let layout = rc
         .text()
-        .new_text_layout("\u{1f600}hello piet-gpu text!")
+        .new_text_layout("\u{1f600}\u{1f601}hello piet-gpu text!")
         .default_attribute(TextAttribute::FontSize(text_size))
         .build()
         .unwrap();
-    rc.draw_text(&layout, Point::new(110.0, 600.0));
-    rc.draw_text(&layout, Point::new(110.0, 700.0));
+    for i in 0..10 {
+        rc.draw_text(&layout, Point::new(110.0, 400.0 + 100.0 * i as f64));
+    }
     rc.restore().unwrap();
     let th = (std::f64::consts::PI / 180.0) * (i as f64);
     let center = Point::new(500.0, 500.0);

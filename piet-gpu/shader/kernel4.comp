@@ -15,8 +15,8 @@
 #include "mem.h"
 #include "setup.h"
 
-#define CHUNK_X 2
-#define CHUNK_Y 4
+#define CHUNK_X 1
+#define CHUNK_Y 1
 #define CHUNK CHUNK_X * CHUNK_Y
 #define CHUNK_DX (TILE_WIDTH_PX / CHUNK_X)
 #define CHUNK_DY (TILE_HEIGHT_PX / CHUNK_Y)
@@ -88,8 +88,8 @@ void main() {
     uvec2 xy_uint = uvec2(gl_LocalInvocationID.x + TILE_WIDTH_PX * gl_WorkGroupID.x, gl_LocalInvocationID.y + TILE_HEIGHT_PX * gl_WorkGroupID.y);
     vec2 xy = vec2(xy_uint);
     mediump vec4 rgba[CHUNK];
-    uint blend_stack[MAX_BLEND_STACK][CHUNK];
-    mediump float blend_alpha_stack[MAX_BLEND_STACK][CHUNK];
+    //uint blend_stack[MAX_BLEND_STACK][CHUNK];
+    //mediump float blend_alpha_stack[MAX_BLEND_STACK][CHUNK];
     for (uint i = 0; i < CHUNK; i++) {
         rgba[i] = vec4(0.0);
     }
@@ -179,6 +179,7 @@ void main() {
             }
             cmd_ref.offset += 4 + CmdColor_size;
             break;
+            /*
         case Cmd_LinGrad:
             CmdLinGrad lin = Cmd_LinGrad_read(cmd_alloc, cmd_ref);
             float d = lin.line_x * float(xy.x) + lin.line_y * float(xy.y) + lin.line_c;
@@ -192,6 +193,7 @@ void main() {
             }
             cmd_ref.offset += 4 + CmdLinGrad_size;
             break;
+            */
         case Cmd_Image:
             CmdImage fill_img = Cmd_Image_read(cmd_alloc, cmd_ref);
             mediump vec4 img[CHUNK] = fillImage(xy_uint, fill_img);
@@ -201,6 +203,7 @@ void main() {
             }
             cmd_ref.offset += 4 + CmdImage_size;
             break;
+        /*
         case Cmd_BeginClip:
             for (uint k = 0; k < CHUNK; k++) {
                 // We reject any inputs that might overflow in render_ctx.rs.
@@ -223,6 +226,7 @@ void main() {
             }
             cmd_ref.offset += 4;
             break;
+            */
         case Cmd_Jump:
             cmd_ref = CmdRef(Cmd_Jump_read(cmd_alloc, cmd_ref).new_ref);
             cmd_alloc.offset = cmd_ref.offset;

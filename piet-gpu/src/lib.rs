@@ -114,7 +114,7 @@ impl Renderer {
 
         // This may be inadequate for very complex scenes (paris etc)
         // TODO: separate staging buffer (if needed)
-        let scene_buf = session.create_buffer(1 * 1024 * 1024, host_upload).unwrap();
+        let scene_buf = session.create_buffer(8 * 1024 * 1024, host_upload).unwrap();
 
         let state_buf = session.create_buffer(1 * 1024 * 1024, dev)?;
         let image_dev = session.create_image2d(width as u32, height as u32)?;

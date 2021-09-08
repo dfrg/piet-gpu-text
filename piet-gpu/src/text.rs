@@ -17,7 +17,8 @@ use crate::PietGpuRenderContext;
 
 // This is very much a hack to get things working.
 // On Windows, can set this to "c:\\Windows\\Fonts\\seguiemj.ttf" to get color emoji
-const FONT_DATA: &[u8] = include_bytes!("../third-party/Roboto-Regular.ttf");
+//const FONT_DATA: &[u8] = include_bytes!("../third-party/Roboto-Regular.ttf");
+const FONT_DATA: &[u8] = include_bytes!("c:\\Windows\\Fonts\\seguiemj.ttf");
 
 #[derive(Clone)]
 pub struct Font {
