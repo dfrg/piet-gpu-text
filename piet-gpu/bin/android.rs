@@ -148,8 +148,8 @@ impl GfxState {
                 println!("render time: {:?}", ts);
 
                 let mut ctx = PietGpuRenderContext::new();
-                //test_scenes::render_anim_frame(&mut ctx, self.current_frame);
-                test_scenes::render_tiger(&mut ctx);
+                test_scenes::render_anim_frame(&mut ctx, self.current_frame);
+                //test_scenes::render_tiger(&mut ctx);
                 render_info_string(&mut ctx, &format!("{:.1}ms", ts.last().unwrap() * 1e3));
                 if let Err(e) = self.renderer.upload_render_ctx(&mut ctx) {
                     println!("error in uploading: {}", e);

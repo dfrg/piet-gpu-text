@@ -15,7 +15,7 @@
 #include "mem.h"
 #include "setup.h"
 
-#define CHUNK_X 1
+#define CHUNK_X 2
 #define CHUNK_Y 1
 #define CHUNK CHUNK_X * CHUNK_Y
 #define CHUNK_DX (TILE_WIDTH_PX / CHUNK_X)
