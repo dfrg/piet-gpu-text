@@ -272,6 +272,7 @@ impl VkInstance {
             choose_compute_device(&self.instance, &devices, surface).ok_or("no suitable device")?;
 
         let mut has_descriptor_indexing = false;
+        /*
         if let Some(ref get_phys_dev_props) = self.get_phys_dev_props {
             let mut descriptor_indexing_features =
                 vk::PhysicalDeviceDescriptorIndexingFeatures::builder();
@@ -287,6 +288,7 @@ impl VkInstance {
                     == vk::TRUE
                 && descriptor_indexing_features.runtime_descriptor_array == vk::TRUE;
         }
+        */
 
         let queue_priorities = [1.0];
         let queue_create_infos = [vk::DeviceQueueCreateInfo::builder()
@@ -1129,11 +1131,12 @@ impl crate::backend::PipelineBuilder<VkDevice> for PipelineBuilder {
             &vk::DescriptorSetLayoutCreateInfo::builder()
                 .bindings(&self.bindings)
                 // It might be a slight optimization not to push this if max_textures = 0
+                /*
                 .push_next(
                     &mut vk::DescriptorSetLayoutBindingFlagsCreateInfo::builder()
                         .binding_flags(&self.binding_flags)
                         .build(),
-                ),
+                )*/,
             None,
         )?;
         let descriptor_set_layouts = [descriptor_set_layout];

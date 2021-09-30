@@ -2,7 +2,7 @@ use std::ops::RangeBounds;
 
 use swash::scale::ScaleContext;
 use swash::zeno::{Vector, Verb};
-use swash::{FontRef, GlyphId};
+use swash::{FontRef, GlyphId, Setting};
 
 use piet::kurbo::{Point, Rect, Size};
 use piet::{
@@ -18,7 +18,8 @@ use crate::PietGpuRenderContext;
 // This is very much a hack to get things working.
 // On Windows, can set this to "c:\\Windows\\Fonts\\seguiemj.ttf" to get color emoji
 //const FONT_DATA: &[u8] = include_bytes!("../third-party/Roboto-Regular.ttf");
-const FONT_DATA: &[u8] = include_bytes!("c:\\Windows\\Fonts\\seguiemj.ttf");
+//const FONT_DATA: &[u8] = include_bytes!("c:\\Windows\\Fonts\\seguiemj.ttf");
+const FONT_DATA: &[u8] = include_bytes!("c:\\Users/raph/github/Inconsolata/fonts/variable/Inconsolata[wdth,wght].ttf");
 
 #[derive(Clone)]
 pub struct Font {
@@ -37,6 +38,8 @@ pub struct PietGpuTextLayout {
     font: Font,
     size: f64,
     glyphs: Vec<Glyph>,
+    wght: f32,
+    wdth: f32,
 }
 
 pub struct PietGpuTextLayoutBuilder {
@@ -123,7 +126,7 @@ impl Font {
         Font { font_ref }
     }
 
-    fn make_path(&self, glyph_id: GlyphId) -> PathEncoder {
+    fn make_path(&self, glyph_id: GlyphId, wght: f32, wdth: f32) -> PathEncoder {
         /*
         let mut encoder = PathEncoder::default();
         self.face.outline_glyph(glyph_id, &mut encoder);
@@ -131,7 +134,16 @@ impl Font {
         */
         // Should the scale context be in the font? In the RenderCtx?
         let mut scale_context = ScaleContext::new();
-        let mut scaler = scale_context.builder(self.font_ref).size(2048.).build();
+        let mut scaler = scale_context.builder(self.font_ref).size(2048.)
+            .variations([Setting {
+                tag: swash::tag_from_str_lossy("wght"),
+                value: wght,
+            }])
+            .variations([Setting {
+                tag: swash::tag_from_str_lossy("wdth"),
+                value: wdth,
+            }])
+        .build();
         let mut encoder = PathEncoder::default();
         if scaler.has_color_outlines() {
             if let Some(outline) = scaler.scale_color_outline(glyph_id) {
@@ -172,6 +184,8 @@ impl PietGpuTextLayout {
             glyphs,
             font: font.clone(),
             size,
+            wght: 400.0,
+            wdth: 100.0,
         }
     }
 
@@ -184,6 +198,8 @@ impl PietGpuTextLayout {
         let mut last_x = 0.0;
         ctx.set_fill_mode(FillMode::Nonzero);
         for glyph in &self.glyphs {
+            // This is a hack and it should be set in shaping.
+            let glyph_x = glyph.x * self.wdth * 0.02;
             let transform = match &mut inv_transform {
                 None => {
                     let inv_scale = scale.recip();
@@ -191,19 +207,19 @@ impl PietGpuTextLayout {
                     inv_transform = Some(Transform {
                         mat: [inv_scale, 0.0, 0.0, -inv_scale],
                         translate: [
-                            -translate[0] * inv_scale - glyph.x,
+                            -translate[0] * inv_scale - glyph_x,
                             translate[1] * inv_scale,
                         ],
                     });
                     let tpos = render_ctx::to_f32_2(pos);
-                    let translate = [tpos[0] + scale * glyph.x, tpos[1]];
+                    let translate = [tpos[0] + scale * glyph_x, tpos[1]];
                     Transform {
                         mat: [scale, 0.0, 0.0, -scale],
                         translate,
                     }
                 }
                 Some(inv) => {
-                    let delta_x = glyph.x - last_x;
+                    let delta_x = glyph_x - last_x;
                     inv.translate[0] -= delta_x;
                     Transform {
                         mat: [1.0, 0.0, 0.0, 1.0],
@@ -211,10 +227,10 @@ impl PietGpuTextLayout {
                     }
                 }
             };
-            last_x = glyph.x;
+            last_x = glyph_x;
             //println!("{:?}, {:?}", transform.mat, transform.translate);
             ctx.encode_transform(transform);
-            let path = self.font.make_path(glyph.glyph_id);
+            let path = self.font.make_path(glyph.glyph_id, self.wght, self.wdth);
             ctx.append_path_encoder(&path);
             if path.n_colr_layers == 0 {
                 ctx.fill_glyph(0xff_ff_ff_ff);
@@ -225,6 +241,11 @@ impl PietGpuTextLayout {
         if let Some(transform) = inv_transform {
             ctx.encode_transform(transform);
         }
+    }
+
+    pub fn set_var_params(&mut self, wght: f32, wdth: f32) {
+        self.wght = wght;
+        self.wdth = wdth;
     }
 }
 

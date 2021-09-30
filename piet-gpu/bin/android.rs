@@ -65,7 +65,7 @@ fn my_main() -> Result<(), Error> {
                 }
                 Event::WindowRedrawNeeded => {
                     if let Some(gfx_state) = gfx_state.as_mut() {
-                        for _ in 0..1000 {
+                        for _ in 0..10000 {
                             gfx_state.redraw();
                         }
                     }

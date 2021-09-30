@@ -7,7 +7,7 @@ use piet::{
     Color, FixedGradient, FixedLinearGradient, GradientStop, Text, TextAttribute, TextLayoutBuilder,
 };
 
-use crate::{PicoSvg, RenderContext, Vec2};
+use crate::{PicoSvg, PietGpuRenderContext, RenderContext, Vec2};
 
 const N_CIRCLES: usize = 0;
 
@@ -191,22 +191,26 @@ pub fn render_tiger(rc: &mut impl RenderContext) {
     println!("flattening and encoding time: {:?}", start.elapsed());
 }
 
-pub fn render_anim_frame(rc: &mut impl RenderContext, i: usize) {
+pub fn render_anim_frame(rc: &mut PietGpuRenderContext, i: usize) {
     rc.fill(
         Rect::new(0.0, 0.0, 1000.0, 1000.0),
         &Color::rgb8(128, 128, 128),
     );
-    let text_size = 60.0 + 40.0 * (0.01 * i as f64).sin();
+    //let text_size = 60.0 + 40.0 * (0.01 * i as f64).sin();
+    let text_size = 80.0;
+    let wdth = 125.0 + 75.0 * (0.01 * i as f32).sin();
+    let wght = 550.0 + 350.0 * (0.01618 * i as f32).sin();
     rc.save().unwrap();
     //rc.transform(Affine::new([0.2, 0.0, 0.0, -0.2, 200.0, 800.0]));
-    let layout = rc
+    let mut layout = rc
         .text()
         .new_text_layout("\u{1f600}\u{1f601}hello piet-gpu text!")
         .default_attribute(TextAttribute::FontSize(text_size))
         .build()
         .unwrap();
+    layout.set_var_params(wght, wdth);
     for i in 0..10 {
-        rc.draw_text(&layout, Point::new(110.0, 400.0 + 100.0 * i as f64));
+        rc.draw_text(&layout, Point::new(10.0, 400.0 + 100.0 * i as f64));
     }
     rc.restore().unwrap();
     let th = (std::f64::consts::PI / 180.0) * (i as f64);
