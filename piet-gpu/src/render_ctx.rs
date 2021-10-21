@@ -15,6 +15,7 @@ use piet_gpu_types::scene::{
     Clip, CubicSeg, Element, FillColor, FillLinGradient, LineSeg, QuadSeg, SetFillMode,
     SetLineWidth, Transform,
 };
+use swash::scale::ScaleContext;
 
 use crate::gradient::{LinearGradient, RampCache};
 use crate::text::Font;
@@ -23,6 +24,11 @@ pub use crate::text::{PathEncoder, PietGpuText, PietGpuTextLayout, PietGpuTextLa
 pub struct PietGpuImage;
 
 pub struct PietGpuRenderContext {
+    pub(crate) z: RenderContextInner,
+    pub(crate) scale_ctx: ScaleContext,
+}
+
+pub(crate) struct RenderContextInner {
     encoder: Encoder,
     elements: Vec<Element>,
     // Will probably need direct accesss to hal Device to create images etc.
@@ -85,7 +91,7 @@ impl PietGpuRenderContext {
         let font = Font::new();
         let inner_text = PietGpuText::new(font);
         let stroke_width = 0.0;
-        PietGpuRenderContext {
+        let z = RenderContextInner {
             encoder,
             elements,
             inner_text,
@@ -98,40 +104,33 @@ impl PietGpuRenderContext {
             state_stack: Vec::new(),
             clip_stack: Vec::new(),
             ramp_cache: RampCache::default(),
-        }
+        };
+        let scale_ctx = ScaleContext::new();
+        PietGpuRenderContext { z, scale_ctx }
     }
 
     pub fn get_scene_buf(&mut self) -> &[u8] {
         const ALIGN: usize = 128;
-        let padded_size = (self.elements.len() + (ALIGN - 1)) & ALIGN.wrapping_neg();
-        self.elements.resize(padded_size, Element::Nop());
-        self.elements.encode(&mut self.encoder);
-        self.encoder.buf()
+        let padded_size = (self.z.elements.len() + (ALIGN - 1)) & ALIGN.wrapping_neg();
+        self.z.elements.resize(padded_size, Element::Nop());
+        self.z.elements.encode(&mut self.z.encoder);
+        self.z.encoder.buf()
     }
 
     pub fn path_count(&self) -> usize {
-        self.path_count
+        self.z.path_count
     }
 
     pub fn pathseg_count(&self) -> usize {
-        self.pathseg_count
+        self.z.pathseg_count
     }
 
     pub fn trans_count(&self) -> usize {
-        self.trans_count
+        self.z.trans_count
     }
 
     pub fn get_ramp_data(&self) -> Vec<u32> {
-        self.ramp_cache.get_ramp_data()
-    }
-
-    pub(crate) fn set_fill_mode(&mut self, fill_mode: FillMode) {
-        if self.fill_mode != fill_mode {
-            self.elements.push(Element::SetFillMode(SetFillMode {
-                fill_mode: fill_mode as u32,
-            }));
-            self.fill_mode = fill_mode;
-        }
+        self.z.ramp_cache.get_ramp_data()
     }
 }
 
@@ -164,7 +163,7 @@ impl RenderContext for PietGpuRenderContext {
     fn gradient(&mut self, gradient: impl Into<FixedGradient>) -> Result<Self::Brush, Error> {
         match gradient.into() {
             FixedGradient::Linear(lin) => {
-                let lin = self.ramp_cache.add_linear_gradient(&lin);
+                let lin = self.z.ramp_cache.add_linear_gradient(&lin);
                 Ok(PietGpuBrush::LinGradient(lin))
             }
             _ => todo!("don't do radial gradients yet"),
@@ -175,18 +174,18 @@ impl RenderContext for PietGpuRenderContext {
 
     fn stroke(&mut self, shape: impl Shape, brush: &impl IntoBrush<Self>, width: f64) {
         let width_f32 = width as f32;
-        if self.stroke_width != width_f32 {
-            self.elements
+        if self.z.stroke_width != width_f32 {
+            self.z.elements
                 .push(Element::SetLineWidth(SetLineWidth { width: width_f32 }));
-            self.stroke_width = width_f32;
+            self.z.stroke_width = width_f32;
         }
-        self.set_fill_mode(FillMode::Stroke);
+        self.z.set_fill_mode(FillMode::Stroke);
         let brush = brush.make_brush(self, || shape.bounding_box()).into_owned();
         // Note: the bbox contribution of stroke becomes more complicated with miter joins.
-        self.accumulate_bbox(|| shape.bounding_box() + Insets::uniform(width * 0.5));
+        self.z.accumulate_bbox(|| shape.bounding_box() + Insets::uniform(width * 0.5));
         let path = shape.path_elements(TOLERANCE);
-        self.encode_path(path, false);
-        self.encode_brush(&brush);
+        self.z.encode_path(path, false);
+        self.z.encode_brush(&brush);
     }
 
     fn stroke_styled(
@@ -202,38 +201,38 @@ impl RenderContext for PietGpuRenderContext {
         let brush = brush.make_brush(self, || shape.bounding_box()).into_owned();
         // Note: we might get a good speedup from using an approximate bounding box.
         // Perhaps that should be added to kurbo.
-        self.accumulate_bbox(|| shape.bounding_box());
+        self.z.accumulate_bbox(|| shape.bounding_box());
         let path = shape.path_elements(TOLERANCE);
-        self.set_fill_mode(FillMode::Nonzero);
-        self.encode_path(path, true);
-        self.encode_brush(&brush);
+        self.z.set_fill_mode(FillMode::Nonzero);
+        self.z.encode_path(path, true);
+        self.z.encode_brush(&brush);
     }
 
     fn fill_even_odd(&mut self, _shape: impl Shape, _brush: &impl IntoBrush<Self>) {}
 
     fn clip(&mut self, shape: impl Shape) {
-        self.set_fill_mode(FillMode::Nonzero);
+        self.z.set_fill_mode(FillMode::Nonzero);
         let path = shape.path_elements(TOLERANCE);
-        self.encode_path(path, true);
-        let begin_ix = self.elements.len();
-        self.elements.push(Element::BeginClip(Clip {
+        self.z.encode_path(path, true);
+        let begin_ix = self.z.elements.len();
+        self.z.elements.push(Element::BeginClip(Clip {
             bbox: Default::default(),
         }));
-        if self.clip_stack.len() >= MAX_BLEND_STACK {
+        if self.z.clip_stack.len() >= MAX_BLEND_STACK {
             panic!("Maximum clip/blend stack size {} exceeded", MAX_BLEND_STACK);
         }
-        self.clip_stack.push(ClipElement {
+        self.z.clip_stack.push(ClipElement {
             bbox: None,
             begin_ix,
         });
-        self.path_count += 1;
-        if let Some(tos) = self.state_stack.last_mut() {
+        self.z.path_count += 1;
+        if let Some(tos) = self.z.state_stack.last_mut() {
             tos.n_clip += 1;
         }
     }
 
     fn text(&mut self) -> &mut Self::Text {
-        &mut self.inner_text
+        &mut self.z.inner_text
     }
 
     fn draw_text(&mut self, layout: &Self::TextLayout, pos: impl Into<Point>) {
@@ -241,23 +240,23 @@ impl RenderContext for PietGpuRenderContext {
     }
 
     fn save(&mut self) -> Result<(), Error> {
-        self.state_stack.push(State {
+        self.z.state_stack.push(State {
             rel_transform: Affine::default(),
-            transform: self.cur_transform,
+            transform: self.z.cur_transform,
             n_clip: 0,
         });
         Ok(())
     }
 
     fn restore(&mut self) -> Result<(), Error> {
-        if let Some(state) = self.state_stack.pop() {
+        if let Some(state) = self.z.state_stack.pop() {
             if state.rel_transform != Affine::default() {
                 let a_inv = state.rel_transform.inverse();
-                self.encode_transform(to_scene_transform(a_inv));
+                self.z.encode_transform(to_scene_transform(a_inv));
             }
-            self.cur_transform = state.transform;
+            self.z.cur_transform = state.transform;
             for _ in 0..state.n_clip {
-                self.pop_clip();
+                self.z.pop_clip();
             }
             Ok(())
         } else {
@@ -266,18 +265,18 @@ impl RenderContext for PietGpuRenderContext {
     }
 
     fn finish(&mut self) -> Result<(), Error> {
-        for _ in 0..self.clip_stack.len() {
-            self.pop_clip();
+        for _ in 0..self.z.clip_stack.len() {
+            self.z.pop_clip();
         }
         Ok(())
     }
 
     fn transform(&mut self, transform: Affine) {
-        self.encode_transform(to_scene_transform(transform));
-        if let Some(tos) = self.state_stack.last_mut() {
+        self.z.encode_transform(to_scene_transform(transform));
+        if let Some(tos) = self.z.state_stack.last_mut() {
             tos.rel_transform *= transform;
         }
-        self.cur_transform *= transform;
+        self.z.cur_transform *= transform;
     }
 
     fn make_image(
@@ -310,7 +309,7 @@ impl RenderContext for PietGpuRenderContext {
     fn blurred_rect(&mut self, _rect: Rect, _blur_radius: f64, _brush: &impl IntoBrush<Self>) {}
 
     fn current_transform(&self) -> Affine {
-        self.cur_transform
+        self.z.cur_transform
     }
 
     fn with_save(&mut self, f: impl FnOnce(&mut Self) -> Result<(), Error>) -> Result<(), Error> {
@@ -320,7 +319,7 @@ impl RenderContext for PietGpuRenderContext {
     }
 }
 
-impl PietGpuRenderContext {
+impl RenderContextInner {
     fn encode_line_seg(&mut self, seg: LineSeg) {
         self.elements.push(Element::Line(seg));
         self.pathseg_count += 1;
@@ -532,6 +531,15 @@ impl PietGpuRenderContext {
                 self.elements.push(Element::FillLinGradient(fill_lin));
                 self.path_count += 1;
             }
+        }
+    }
+
+    pub(crate) fn set_fill_mode(&mut self, fill_mode: FillMode) {
+        if self.fill_mode != fill_mode {
+            self.elements.push(Element::SetFillMode(SetFillMode {
+                fill_mode: fill_mode as u32,
+            }));
+            self.fill_mode = fill_mode;
         }
     }
 }

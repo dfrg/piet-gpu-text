@@ -171,7 +171,9 @@ impl PietGpuTextLayout {
     }
 
     pub(crate) fn draw_text(&self, ctx: &mut PietGpuRenderContext, pos: Point) {
+        //let scale_ctx = &mut ctx.scale_ctx;
         let mut scale_ctx = ScaleContext::new();
+        let z = &mut ctx.z;
         let scaler = scale_ctx.builder(self.font.font_ref).size(2048.)
             .build();
         let mut tc = TextRenderCtx {
@@ -183,7 +185,7 @@ impl PietGpuTextLayout {
         let mut inv_transform = None;
         // TODO: handle y offsets also
         let mut last_x = 0.0;
-        ctx.set_fill_mode(FillMode::Nonzero);
+        z.set_fill_mode(FillMode::Nonzero);
         for glyph in &self.glyphs {
             let transform = match &mut inv_transform {
                 None => {
@@ -214,17 +216,17 @@ impl PietGpuTextLayout {
             };
             last_x = glyph.x;
             //println!("{:?}, {:?}", transform.mat, transform.translate);
-            ctx.encode_transform(transform);
+            z.encode_transform(transform);
             let path = self.font.make_path(glyph.glyph_id, &mut tc);
-            ctx.append_path_encoder(&path);
+            z.append_path_encoder(&path);
             if path.n_colr_layers == 0 {
-                ctx.fill_glyph(0xff_ff_ff_ff);
+                z.fill_glyph(0xff_ff_ff_ff);
             } else {
-                ctx.bump_n_paths(path.n_colr_layers);
+                z.bump_n_paths(path.n_colr_layers);
             }
         }
         if let Some(transform) = inv_transform {
-            ctx.encode_transform(transform);
+            z.encode_transform(transform);
         }
     }
 }
