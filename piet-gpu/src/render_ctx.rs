@@ -16,9 +16,10 @@ use piet_gpu_types::scene::{
     SetLineWidth, Transform,
 };
 
+use piet_parley::{ParleyText, ParleyTextLayout};
+
 use crate::gradient::{LinearGradient, RampCache};
-use crate::text::Font;
-pub use crate::text::{PathEncoder, PietGpuText, PietGpuTextLayout, PietGpuTextLayoutBuilder};
+pub use crate::text::{PathEncoder};
 
 pub struct PietGpuImage;
 
@@ -26,7 +27,7 @@ pub struct PietGpuRenderContext {
     encoder: Encoder,
     elements: Vec<Element>,
     // Will probably need direct accesss to hal Device to create images etc.
-    inner_text: PietGpuText,
+    inner_text: ParleyText,
     stroke_width: f32,
     fill_mode: FillMode,
     // We're tallying these cpu-side for expedience, but will probably
@@ -82,8 +83,7 @@ impl PietGpuRenderContext {
     pub fn new() -> PietGpuRenderContext {
         let encoder = Encoder::new();
         let elements = Vec::new();
-        let font = Font::new();
-        let inner_text = PietGpuText::new(font);
+        let inner_text = ParleyText::new();
         let stroke_width = 0.0;
         PietGpuRenderContext {
             encoder,
@@ -138,8 +138,8 @@ impl PietGpuRenderContext {
 impl RenderContext for PietGpuRenderContext {
     type Brush = PietGpuBrush;
     type Image = PietGpuImage;
-    type Text = PietGpuText;
-    type TextLayout = PietGpuTextLayout;
+    type Text = ParleyText;
+    type TextLayout = ParleyTextLayout;
 
     fn status(&mut self) -> Result<(), Error> {
         Ok(())
@@ -237,7 +237,7 @@ impl RenderContext for PietGpuRenderContext {
     }
 
     fn draw_text(&mut self, layout: &Self::TextLayout, pos: impl Into<Point>) {
-        layout.draw_text(self, pos.into());
+        super::text::draw_text(self, layout, pos.into());
     }
 
     fn save(&mut self) -> Result<(), Error> {

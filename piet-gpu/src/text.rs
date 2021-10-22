@@ -1,14 +1,11 @@
-use std::ops::RangeBounds;
-
-use swash::scale::ScaleContext;
+use piet_parley::swash;
+use swash::scale::{ScaleContext, Scaler};
 use swash::zeno::{Vector, Verb};
 use swash::{FontRef, GlyphId};
 
-use piet::kurbo::{Point, Rect, Size};
-use piet::{
-    Error, FontFamily, HitTestPoint, HitTestPosition, LineMetric, Text, TextAttribute, TextLayout,
-    TextLayoutBuilder, TextStorage,
-};
+use piet::kurbo::{Point};
+
+use piet_parley::ParleyTextLayout;
 
 use piet_gpu_types::scene::{CubicSeg, Element, FillColor, LineSeg, QuadSeg, Transform};
 
@@ -19,38 +16,6 @@ use crate::PietGpuRenderContext;
 // On Windows, can set this to "c:\\Windows\\Fonts\\seguiemj.ttf" to get color emoji
 const FONT_DATA: &[u8] = include_bytes!("../third-party/Roboto-Regular.ttf");
 
-#[derive(Clone)]
-pub struct Font {
-    // Storing the font_ref is ok for static font data, but the better way to do
-    // this is to store the CacheKey.
-    font_ref: FontRef<'static>,
-}
-
-#[derive(Clone)]
-pub struct PietGpuText {
-    font: Font,
-}
-
-#[derive(Clone)]
-pub struct PietGpuTextLayout {
-    font: Font,
-    size: f64,
-    glyphs: Vec<Glyph>,
-}
-
-pub struct PietGpuTextLayoutBuilder {
-    font: Font,
-    text: String,
-    size: f64,
-}
-
-#[derive(Clone, Debug)]
-struct Glyph {
-    glyph_id: GlyphId,
-    x: f32,
-    y: f32,
-}
-
 #[derive(Default)]
 pub struct PathEncoder {
     elements: Vec<Element>,
@@ -59,216 +24,76 @@ pub struct PathEncoder {
     n_colr_layers: usize,
 }
 
-impl PietGpuText {
-    pub(crate) fn new(font: Font) -> PietGpuText {
-        PietGpuText { font }
-    }
-}
-
-impl Text for PietGpuText {
-    type TextLayout = PietGpuTextLayout;
-    type TextLayoutBuilder = PietGpuTextLayoutBuilder;
-
-    fn load_font(&mut self, _data: &[u8]) -> Result<FontFamily, Error> {
-        Ok(FontFamily::default())
-    }
-
-    fn new_text_layout(&mut self, text: impl TextStorage) -> Self::TextLayoutBuilder {
-        PietGpuTextLayoutBuilder::new(&self.font, &text.as_str())
-    }
-
-    fn font_family(&mut self, _family_name: &str) -> Option<FontFamily> {
-        Some(FontFamily::default())
-    }
-}
-
-impl TextLayout for PietGpuTextLayout {
-    fn size(&self) -> Size {
-        Size::ZERO
-    }
-
-    fn image_bounds(&self) -> Rect {
-        Rect::ZERO
-    }
-
-    fn line_text(&self, _line_number: usize) -> Option<&str> {
-        None
-    }
-
-    fn line_metric(&self, _line_number: usize) -> Option<LineMetric> {
-        None
-    }
-
-    fn line_count(&self) -> usize {
-        0
-    }
-
-    fn hit_test_point(&self, _point: Point) -> HitTestPoint {
-        HitTestPoint::default()
-    }
-
-    fn hit_test_text_position(&self, _text_position: usize) -> HitTestPosition {
-        HitTestPosition::default()
-    }
-
-    fn text(&self) -> &str {
-        ""
-    }
-}
-
-impl Font {
-    pub fn new() -> Font {
-        let font_ref = FontRef::from_index(FONT_DATA, 0).expect("error parsing font");
-        Font { font_ref }
-    }
-
-    fn make_path(&self, glyph_id: GlyphId) -> PathEncoder {
-        /*
-        let mut encoder = PathEncoder::default();
-        self.face.outline_glyph(glyph_id, &mut encoder);
-        encoder
-        */
-        // Should the scale context be in the font? In the RenderCtx?
-        let mut scale_context = ScaleContext::new();
-        let mut scaler = scale_context.builder(self.font_ref).size(2048.).build();
-        let mut encoder = PathEncoder::default();
-        if scaler.has_color_outlines() {
-            if let Some(outline) = scaler.scale_color_outline(glyph_id) {
-                // TODO: be more sophisticated choosing a palette
-                let palette = self.font_ref.color_palettes().next().unwrap();
-                let mut i = 0;
-                while let Some(layer) = outline.get(i) {
-                    if let Some(color_ix) = layer.color_index() {
-                        let color = palette.get(color_ix);
-                        encoder.append_outline(layer.verbs(), layer.points());
-                        encoder.append_solid_fill(color);
-                    }
-                    i += 1;
+fn make_path(font: &FontRef, scaler: &mut Scaler, glyph_id: GlyphId) -> PathEncoder {
+    /*
+    let mut encoder = PathEncoder::default();
+    self.face.outline_glyph(glyph_id, &mut encoder);
+    encoder
+    */
+    // Should the scale context be in the font? In the RenderCtx?
+    let mut encoder = PathEncoder::default();
+    if scaler.has_color_outlines() {
+        if let Some(outline) = scaler.scale_color_outline(glyph_id) {
+            // TODO: be more sophisticated choosing a palette
+            let palette = font.color_palettes().next().unwrap();
+            let mut i = 0;
+            while let Some(layer) = outline.get(i) {
+                if let Some(color_ix) = layer.color_index() {
+                    let color = palette.get(color_ix);
+                    encoder.append_outline(layer.verbs(), layer.points());
+                    encoder.append_solid_fill(color);
                 }
-                return encoder;
+                i += 1;
             }
+            return encoder;
         }
-        if let Some(outline) = scaler.scale_outline(glyph_id) {
-            encoder.append_outline(outline.verbs(), outline.points());
-        }
-        encoder
     }
+    if let Some(outline) = scaler.scale_outline(glyph_id) {
+        encoder.append_outline(outline.verbs(), outline.points());
+    }
+    encoder
 }
 
-impl PietGpuTextLayout {
-    pub(crate) fn make_layout(font: &Font, text: &str, size: f64) -> PietGpuTextLayout {
-        let mut glyphs = Vec::new();
-        let mut x = 0.0;
-        let y = 0.0;
-        for c in text.chars() {
-            let glyph_id = font.font_ref.charmap().map(c);
-            let glyph = Glyph { glyph_id, x, y };
-            glyphs.push(glyph);
-            let adv = font.font_ref.glyph_metrics(&[]).advance_width(glyph_id);
-            x += adv;
-        }
-        PietGpuTextLayout {
-            glyphs,
-            font: font.clone(),
-            size,
-        }
-    }
-
-    pub(crate) fn draw_text(&self, ctx: &mut PietGpuRenderContext, pos: Point) {
-        // Should we use ppem from font, or let swash scale?
-        const DEFAULT_UPEM: u16 = 2048;
-        let scale = self.size as f32 / DEFAULT_UPEM as f32;
-        let mut inv_transform = None;
-        // TODO: handle y offsets also
+pub(crate) fn draw_text(ctx: &mut PietGpuRenderContext, layout: &ParleyTextLayout, pos: Point) {
+    ctx.set_fill_mode(FillMode::Nonzero);
+    let mut scale_ctx = ScaleContext::new();
+    let tpos = render_ctx::to_f32_2(pos);
+    for line in layout.layout.lines() {
         let mut last_x = 0.0;
-        ctx.set_fill_mode(FillMode::Nonzero);
-        for glyph in &self.glyphs {
-            let transform = match &mut inv_transform {
-                None => {
-                    let inv_scale = scale.recip();
-                    let translate = render_ctx::to_f32_2(pos);
-                    inv_transform = Some(Transform {
-                        mat: [inv_scale, 0.0, 0.0, -inv_scale],
-                        translate: [
-                            -translate[0] * inv_scale - glyph.x,
-                            translate[1] * inv_scale,
-                        ],
-                    });
-                    let tpos = render_ctx::to_f32_2(pos);
-                    let translate = [tpos[0] + scale * glyph.x, tpos[1]];
-                    Transform {
-                        mat: [scale, 0.0, 0.0, -scale],
-                        translate,
-                    }
+        let mut last_y = 0.0;
+        ctx.encode_transform(Transform {
+            mat: [1.0, 0.0, 0.0, -1.0],
+            translate: tpos,
+        });
+        for glyph_run in line.glyph_runs() {
+            let run = glyph_run.run();
+            let font = run.font();
+            let font = font.as_ref();
+            let mut scaler = scale_ctx.builder(font).size(run.font_size()).build();
+            for glyph in glyph_run.positioned_glyphs() {  
+                let delta_x = glyph.x - last_x;
+                let delta_y = glyph.y - last_y;
+                let transform = Transform {
+                    mat: [1.0, 0.0, 0.0, 1.0],
+                    translate: [delta_x, -delta_y],
+                };
+                last_x = glyph.x;
+                last_y = glyph.y;
+                //println!("{:?}, {:?}", transform.mat, transform.translate);
+                ctx.encode_transform(transform);
+                let path = make_path(&font, &mut scaler, glyph.id);
+                ctx.append_path_encoder(&path);
+                if path.n_colr_layers == 0 {
+                    ctx.fill_glyph(0xff_ff_ff_ff);
+                } else {
+                    ctx.bump_n_paths(path.n_colr_layers);
                 }
-                Some(inv) => {
-                    let delta_x = glyph.x - last_x;
-                    inv.translate[0] -= delta_x;
-                    Transform {
-                        mat: [1.0, 0.0, 0.0, 1.0],
-                        translate: [delta_x, 0.0],
-                    }
-                }
-            };
-            last_x = glyph.x;
-            //println!("{:?}, {:?}", transform.mat, transform.translate);
-            ctx.encode_transform(transform);
-            let path = self.font.make_path(glyph.glyph_id);
-            ctx.append_path_encoder(&path);
-            if path.n_colr_layers == 0 {
-                ctx.fill_glyph(0xff_ff_ff_ff);
-            } else {
-                ctx.bump_n_paths(path.n_colr_layers);
             }
         }
-        if let Some(transform) = inv_transform {
-            ctx.encode_transform(transform);
-        }
-    }
-}
-
-impl PietGpuTextLayoutBuilder {
-    pub(crate) fn new(font: &Font, text: &str) -> PietGpuTextLayoutBuilder {
-        PietGpuTextLayoutBuilder {
-            font: font.clone(),
-            text: text.to_owned(),
-            size: 12.0,
-        }
-    }
-}
-
-impl TextLayoutBuilder for PietGpuTextLayoutBuilder {
-    type Out = PietGpuTextLayout;
-
-    fn max_width(self, _width: f64) -> Self {
-        self
-    }
-
-    fn alignment(self, _alignment: piet::TextAlignment) -> Self {
-        self
-    }
-
-    fn default_attribute(mut self, attribute: impl Into<TextAttribute>) -> Self {
-        let attribute = attribute.into();
-        match attribute {
-            TextAttribute::FontSize(size) => self.size = size,
-            _ => (),
-        }
-        self
-    }
-
-    fn range_attribute(
-        self,
-        _range: impl RangeBounds<usize>,
-        _attribute: impl Into<TextAttribute>,
-    ) -> Self {
-        self
-    }
-
-    fn build(self) -> Result<Self::Out, Error> {
-        Ok(PietGpuTextLayout::make_layout(
-            &self.font, &self.text, self.size,
-        ))
+        ctx.encode_transform(Transform {
+            mat: [1.0, 0.0, 0.0, -1.0],
+            translate: [-(tpos[0] + last_x), tpos[1] + last_y],
+        });
     }
 }
 

@@ -4,7 +4,7 @@ use rand::{Rng, RngCore};
 
 use piet::kurbo::{BezPath, Circle, Line, Point, Rect, Shape};
 use piet::{
-    Color, FixedGradient, FixedLinearGradient, GradientStop, Text, TextAttribute, TextLayoutBuilder,
+    Color, FixedGradient, FixedLinearGradient, GradientStop, Text, TextAttribute, TextLayoutBuilder, FontStyle, FontWeight,
 };
 
 use crate::{PicoSvg, RenderContext, Vec2};
@@ -201,12 +201,14 @@ pub fn render_anim_frame(rc: &mut impl RenderContext, i: usize) {
     //rc.transform(Affine::new([0.2, 0.0, 0.0, -0.2, 200.0, 800.0]));
     let layout = rc
         .text()
-        .new_text_layout("\u{1f600}hello piet-gpu text!")
+        .new_text_layout("\u{1f9d9}\u{200d}\u{2640}hello piet-gpu\ntext!\u{1f383}")
         .default_attribute(TextAttribute::FontSize(text_size))
+        .range_attribute(16..20, TextAttribute::Weight(FontWeight::BOLD))
+        .range_attribute(21..24, TextAttribute::Style(FontStyle::Italic))
         .build()
         .unwrap();
-    rc.draw_text(&layout, Point::new(110.0, 600.0));
-    rc.draw_text(&layout, Point::new(110.0, 700.0));
+    rc.draw_text(&layout, Point::new(110.0, 200.0));
+    rc.draw_text(&layout, Point::new(110.0, 500.0));
     rc.restore().unwrap();
     let th = (std::f64::consts::PI / 180.0) * (i as f64);
     let center = Point::new(500.0, 500.0);
