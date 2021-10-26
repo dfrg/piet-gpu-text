@@ -67,8 +67,10 @@ pub(crate) fn draw_text(ctx: &mut PietGpuRenderContext, layout: &ParleyTextLayou
         });
         for glyph_run in line.glyph_runs() {
             let run = glyph_run.run();
+            let color = &glyph_run.style().brush.0;
             let font = run.font();
             let font = font.as_ref();
+            let mut first = true;
             let mut scaler = scale_ctx.builder(font).size(run.font_size()).build();
             for glyph in glyph_run.positioned_glyphs() {  
                 let delta_x = glyph.x - last_x;
@@ -79,12 +81,58 @@ pub(crate) fn draw_text(ctx: &mut PietGpuRenderContext, layout: &ParleyTextLayou
                 };
                 last_x = glyph.x;
                 last_y = glyph.y;
+                if first {
+                    if let Some(deco) = glyph_run.style().underline.as_ref() {
+                        let offset = deco.offset.unwrap_or(run.metrics().underline_offset);
+                        let size = deco.size.unwrap_or(run.metrics().underline_size);
+                        ctx.encode_transform(Transform {
+                            mat: [1.0, 0.0, 0.0, 1.0],
+                            translate: [delta_x, -(delta_y - offset)],
+                        });
+                        let width = glyph_run.advance();
+                        let mut path = PathEncoder::default();
+                        path.elements.push(Element::Line(LineSeg { p0: [0.0; 2], p1: [width, 0.0]}));
+                        path.elements.push(Element::Line(LineSeg { p0: [width, 0.0], p1: [width, -size]}));
+                        path.elements.push(Element::Line(LineSeg { p0: [width, -size], p1: [0.0, -size]}));
+                        path.elements.push(Element::Line(LineSeg { p0: [0.0, -size], p1: [0.0; 2]}));
+                        path.n_segs += 4;
+                        ctx.append_path_encoder(&path);
+                        ctx.fill_glyph(deco.brush.0.as_rgba_u32());
+                        ctx.encode_transform(Transform {
+                            mat: [1.0, 0.0, 0.0, 1.0],
+                            translate: [-delta_x, delta_y - offset],
+                        });
+                    }
+                    if let Some(deco) = glyph_run.style().strikethrough.as_ref() {
+                        let offset = deco.offset.unwrap_or(run.metrics().strikethrough_offset);
+                        let size = deco.size.unwrap_or(run.metrics().strikethrough_size);
+                        ctx.encode_transform(Transform {
+                            mat: [1.0, 0.0, 0.0, 1.0],
+                            translate: [delta_x, -(delta_y - offset)],
+                        });
+                        let width = glyph_run.advance();
+                        let mut path = PathEncoder::default();
+                        path.elements.push(Element::Line(LineSeg { p0: [0.0; 2], p1: [width, 0.0]}));
+                        path.elements.push(Element::Line(LineSeg { p0: [width, 0.0], p1: [width, -size]}));
+                        path.elements.push(Element::Line(LineSeg { p0: [width, -size], p1: [0.0, -size]}));
+                        path.elements.push(Element::Line(LineSeg { p0: [0.0, -size], p1: [0.0; 2]}));
+                        path.n_segs += 4;
+                        ctx.append_path_encoder(&path);
+                        ctx.fill_glyph(deco.brush.0.as_rgba_u32());
+                        ctx.encode_transform(Transform {
+                            mat: [1.0, 0.0, 0.0, 1.0],
+                            translate: [-delta_x, delta_y - offset],
+                        });
+                    }
+                }
+                first = false;                
                 //println!("{:?}, {:?}", transform.mat, transform.translate);
                 ctx.encode_transform(transform);
                 let path = make_path(&font, &mut scaler, glyph.id);
                 ctx.append_path_encoder(&path);
-                if path.n_colr_layers == 0 {
-                    ctx.fill_glyph(0xff_ff_ff_ff);
+                if path.n_colr_layers == 0 {                    
+                    ctx.fill_glyph(color.as_rgba_u32());
+                    // ctx.fill_glyph(0xff_ff_ff_ff);
                 } else {
                     ctx.bump_n_paths(path.n_colr_layers);
                 }

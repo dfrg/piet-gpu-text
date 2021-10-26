@@ -196,15 +196,20 @@ pub fn render_anim_frame(rc: &mut impl RenderContext, i: usize) {
         Rect::new(0.0, 0.0, 1000.0, 1000.0),
         &Color::rgb8(128, 128, 128),
     );
-    let text_size = 60.0 + 40.0 * (0.01 * i as f64).sin();
+    // let text_size = 60.0 + 40.0 * (0.01 * i as f64).sin();
+    let text_size = 60.0;
     rc.save().unwrap();
     //rc.transform(Affine::new([0.2, 0.0, 0.0, -0.2, 200.0, 800.0]));
     let layout = rc
         .text()
-        .new_text_layout("\u{1f9d9}\u{200d}\u{2640}hello piet-gpu\ntext!\u{1f383}")
+        .new_text_layout("\u{1f9d9}\u{200d}\u{2640} नमस्ते piet-gpu\ntext! \u{1f383}")
         .default_attribute(TextAttribute::FontSize(text_size))
-        .range_attribute(16..20, TextAttribute::Weight(FontWeight::BOLD))
-        .range_attribute(21..24, TextAttribute::Style(FontStyle::Italic))
+        .default_attribute(TextAttribute::TextColor(Color::WHITE))
+        .range_attribute(30..34, TextAttribute::Weight(FontWeight::BOLD))
+        .range_attribute(35..38, TextAttribute::Style(FontStyle::Italic))
+        .range_attribute(35..38, TextAttribute::TextColor(Color::rgb8(0, 0, 255)))
+        .range_attribute(35..38, TextAttribute::Underline(true))
+        .range_attribute(39..43, TextAttribute::Strikethrough(true))
         .build()
         .unwrap();
     rc.draw_text(&layout, Point::new(110.0, 200.0));
